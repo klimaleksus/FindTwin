@@ -1,0 +1,971 @@
+﻿<!doctype html>
+<html><head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>Find Twin</title>
+<script src="local_waifus.js"></script>
+<script>
+"use strict";
+
+// https://github.com/klimaleksus/FindTwin
+
+function waifu_provider(){
+	return {
+		providers:{
+			Default:function(i){
+				if(i<0)return 250;
+				return 'https://klimaleksus.github.io/FindTwin/sample/sample-'+i+'.jpg';
+			},
+			Local:function(i){
+				if(i<0)return 250;
+				return './sample/sample-'+i+'.jpg';
+			},
+			Random:function(i){
+				if(i<0)return 4000;
+				return 'http://klimaleksus2.ucoz.ru/waifu/random/'+((i/100)|0)+'/random-'+i+'.jpg';
+			},
+			Normal:function(i){
+				if(i<0)return 3000;
+				return 'http://klimaleksus2.ucoz.ru/waifu/normal/'+((i/100)|0)+'/normal-'+i+'.jpg';
+			},
+			Weird:function(i){
+				if(i<0)return 1000;
+				return 'http://klimaleksus2.ucoz.ru/waifu/weird/'+((i/100)|0)+'/weird-'+i+'.jpg';
+			},
+			Good:function(i){
+				if(i<0)return 2000;
+				return 'http://klimaleksus2.ucoz.ru/waifu/good/'+((i/100)|0)+'/good-'+i+'.jpg';
+			},
+			TWDNE:function(i){
+				if(i<0)return 100000;
+				return 'https://www.thiswaifudoesnotexist.net/example-'+i+'.jpg';
+			},
+		},
+		waifu:function(){
+			if(!this._prv)return '';
+			if(--this._idx<0){
+				this._remake();
+				if(--this._idx<0)return '';
+			}
+			return (this._fnc[this._prv])(this._arr[this._idx]);
+		},
+		start:function(provider){
+			if(!this._fnc){
+				this._fnc={};
+				if(window.local_waifus)for(var x in local_waifus)this._fnc[x]=(function(x,w){
+					return function(i){
+						if(i<0)return w.length;
+						return w[i];
+					};
+				})(x,local_waifus[x]);
+				for(var x in this.providers)if(!this._fnc[x])this._fnc[x]=this.providers[x];
+			}
+			this._idx=0;
+			if(!provider){
+				var r=[];
+				for(var x in this._fnc)r.push(x);
+				return r;
+			}
+			var fnc=this._fnc[provider];
+			if(!fnc)return 0;
+			var n=fnc(-1);
+			if(!n)return 0;
+			this._prv=provider;
+			return n;
+		},
+		_remake:function(){
+			var n=(this._fnc[this._prv])(-1);
+			var arr=[];
+			for(var i=0;i<n;i++)arr.push([i,Math.random()]);
+			arr.sort(function(a,b){
+				return a[1]-b[1];
+			});
+			this._arr=arr.map(function(x){
+				return x[0];
+			}).sort(compare_shuffle);
+			this._idx=arr.length;
+		},
+		_fnc:null,
+		_arr:[],
+		_idx:0,
+		_prv:''
+	};
+}
+
+function game_options(w,h,t){
+	game_options.board_width=w;
+	game_options.board_height=h;
+	game_options.board_id=document.getElementById('game_board');
+	if(t)game_options.old_dim=t;
+	switch(game_options.old_dim){
+		case 10:game_options.all_sizes=[[10,10],[11,9],[12,8],[14,7],[16,6],[20,5],[25,4],[33,3],[49,2],[97,1]];break;
+		case 9:game_options.all_sizes=[[9,9],[10,8],[11,7],[13,6],[16,5],[20,4],[26,3],[39,2],[79,1]];break;
+		case 8:game_options.all_sizes=[[8,8],[9,7],[10,6],[12,5],[16,4],[21,3],[31,2],[61,1]];break;
+		case 7:game_options.all_sizes=[[7,7],[8,6],[10,5],[12,4],[16,3],[25,1],[49,1]];break;
+		case 6:game_options.all_sizes=[[6,6],[7,5],[9,4],[12,3],[18,2],[35,1]];break;
+		case 5:game_options.all_sizes=[[5,5],[6,4],[8,3],[12,2],[25,1]];break;
+		case 4:game_options.all_sizes=[[4,4],[6,3],[8,2],[9,2],[17,1]];break;
+		case 3:game_options.all_sizes=[[3,3],[4,2],[5,2],[8,1]];break;
+		default: return false;
+	}
+	var r,m;
+	if(w>=h){
+		r=[w,h];
+		m=1;
+	}else{
+		r=[h,w];
+		m=-1;
+	}
+	for(var i=game_options.all_sizes.length;i--;)game_options.all_sizes[i].push(i);
+	var c=game_options.all_sizes.reduce(function(a,b){
+		return rect_area(rect_fit(a,r))>rect_area(rect_fit(b,r))?a:b;
+	},game_options.all_sizes[0]);
+	m*=c[2];
+	r=rect_fit(c,r);
+	if(m<0){
+		r=[r[1],r[0]];
+		c=[c[1],c[0]];
+	}
+	r=[w,h];
+	game_options.tile_width=(r[0]/c[0])|0;
+	game_options.tile_height=(r[1]/c[1])|0;
+	game_options.board_width=r[0];
+	game_options.board_height=r[1];
+	game_options.size_mode=m;
+	game_options.min_tiles=rect_area(c);
+	game_options.max_tiles=game_options.all_sizes.reduce(function(a,s){
+		var c=rect_area(s);
+		return c>a?c:a;
+	},0);
+	game_options.Mins=game_options.all_sizes.reduce(function(a,s){
+		var c=rect_area(s);
+		return c<a?c:a;
+	},game_options.max_tiles);
+	return true;
+}
+
+function board_resize(dim){
+	if(dim==-2)return 3;
+	if(dim==-1)return 10;
+	var w=Math.max(document.documentElement.clientWidth,window.innerWidth||0);
+	var h=Math.max(document.documentElement.clientHeight,window.innerHeight||0);
+	game_options(w,h,dim);
+	game_options.board_id.style.width=game_options.board_width+'px';
+	game_options.board_id.style.height=game_options.board_height+'px';
+}
+
+function compare_shuffle(){
+	return 0.5-Math.random();
+}
+
+function rect_fit(from,to){
+	var r=from[0]*to[1]/from[1];
+	if(r>to[0])return [to[0],from[1]*to[0]/from[0]];
+	return [r,to[1]];
+}
+
+function rect_area(rect){
+	return rect[0]*rect[1];
+}
+
+function class_del(elem,cls){
+	elem.className=(elem.className+' ').replace(' '+cls+' ',' ').trim();
+}
+
+function class_add(elem,cls){
+	class_del(elem,cls);
+	elem.className+=' '+cls;
+}
+
+function get_opacity(elem){
+	return elem._my_opacity_||0;
+}
+
+function set_opacity(elem,op){
+	elem._my_opacity_=op;
+	if(!animator.simple)return elem.style.opacity=op;
+	if(op<=0.1)return elem.style.opacity=0;
+	if(op>=0.9)return elem.style.opacity=1;
+	elem.style.opacity=0.5;
+}
+
+function tile_mousemove(e){
+	if(!animator.ready)return;
+	var t=e.target;
+	class_add(t.parentNode,'current');
+	animator_show(t);
+	if(!animator.curtile)animator.curtile=t;
+	if(t==animator.curtile)return;
+	if(animator.curtile!=animator.seltile)class_del(animator.curtile.parentNode,'current');
+	animator_hide(animator.curtile);
+	animator.curtile=t;
+}
+
+function tile_touchmove(e){
+	if(!e.changedTouches||!e.changedTouches[0])return true;
+	e.preventDefault();
+	var t=document.elementFromPoint(e.changedTouches[0].pageX,e.changedTouches[0].pageY);
+	if(!t||t.tagName!='IMG')return;
+	tile_mousemove({target:t});
+	return false;
+}
+
+function tile_touchaction(e){
+	if(!e.changedTouches||!e.changedTouches[0])return true;
+	e.preventDefault();
+	var t=document.elementFromPoint(e.changedTouches[0].pageX,e.changedTouches[0].pageY);
+	if(!t||t.tagName!='IMG')return;
+	tile_mouseaction({target:t});
+	return false;
+}
+
+function tile_mouseaction(e){
+	if(!animator.ready)return;
+	tile_mousemove(e);
+	var t=e.target;
+	class_add(t.parentNode,'current');
+	if(!animator.seltile)animator.seltile=t;
+	if(t==animator.seltile)return;
+	if(t.src==animator.seltile.src){
+		class_del(t.parentNode,'current');
+		class_del(animator.seltile.parentNode,'current');
+		animator_done([t,t.parentNode],[animator.seltile,animator.seltile.parentNode]);
+	}else {
+		class_del(animator.seltile.parentNode,'current');
+		animator.seltile=t;
+	}
+}
+
+function tile_events(t,use){
+	t.removeEventListener('mousemove',tile_mousemove);
+	t.removeEventListener('mousedown',tile_mouseaction);
+	t.removeEventListener('mouseup',tile_mouseaction);
+	t.removeEventListener('touchmove',tile_touchmove);
+	t.removeEventListener('touchstart',tile_touchaction);
+	t.removeEventListener('touchend',tile_touchaction);
+	t.removeEventListener('touchcancel',tile_touchaction);
+	if(!use)return;
+	t.addEventListener('mousemove',tile_mousemove);
+	t.addEventListener('mousedown',tile_mouseaction);
+	t.addEventListener('mouseup',tile_mouseaction);
+	t.addEventListener('touchmove',tile_touchmove);
+	t.addEventListener('touchstart',tile_touchaction);
+	t.addEventListener('touchend',tile_touchaction);
+	t.addEventListener('touchcancel',tile_touchaction);
+}
+
+function new_tile(waifu_or_tile,cb){
+	if(animator.stop)return;
+	var s,b,t,r,c,waifu,tile;
+	if(cb){
+		waifu=waifu_or_tile;
+		s=encodeURI(waifu.waifu());
+	} else tile=waifu_or_tile;
+	b=document.createElement('div');
+	b.className='game_tile_border';
+	game_options.board_id.appendChild(b);
+	if(cb){
+		t=document.createElement('img');
+		t.className='game_tile';
+		t.addEventListener('load',function(e){
+			cb(r);
+		});
+		t.addEventListener('error',function(e){
+			console.warn('Image error',t.src);
+			remove_tile(t,b);
+			setTimeout(function(){
+				new_tile(waifu,cb);
+			},500);
+		});
+		t.src=s;
+	}else{
+		t=tile[0].cloneNode();
+		t.className='game_tile mirror';
+	}
+	tile_events(t,true);
+	set_opacity(t,0);
+	b.appendChild(t);
+	r=[t,b];
+	place_tile(r,-1);
+	return r;
+}
+
+function place_tile(tile,pos){
+	tile[1].style.width=''+game_options.tile_width+'px';
+	tile[1].style.height=''+game_options.tile_height+'px';
+	tile[0].width=game_options.tile_width;
+	tile[0].height=game_options.tile_height;
+	if(pos<0||pos>=game_options.min_tiles){
+		tile[1].style.left=''+(-2*game_options.tile_width)+'px';
+		tile[1].style.top=''+(-2*game_options.tile_height)+'px';
+		return;
+	};
+	var x,y,m;
+	m=Math.abs(game_options.size_mode);
+	if(game_options.size_mode<0){
+		x=(pos%game_options.all_sizes[m][1]);
+		y=(pos/game_options.all_sizes[m][1])|0;
+	}else{
+		x=(pos%game_options.all_sizes[m][0]);
+		y=(pos/game_options.all_sizes[m][0])|0;
+	}
+	tile[1].style.left=''+(game_options.tile_width*x)+'px';
+	tile[1].style.top=''+(game_options.tile_height*y)+'px';
+}
+
+function place_all(){
+	for(var i=animator.tiles.length;i--;)if(animator.tiles[i])place_tile(animator.tiles[i],i);
+}
+
+function place_next(){
+	if(animator.cache.length<1||!animator.ready)return;
+	var empty=[];
+	for(var n=animator.tiles.length;n--;)if(!animator.tiles[n])empty.push(n);
+	if(empty.length<2)return;
+	empty.sort(compare_shuffle);
+	var i=empty[0],j=empty[1];
+	animator.cache.sort(compare_shuffle);
+	animator.twins.sort(compare_shuffle);
+	var twin=animator.twins.pop();
+	var tile=animator.cache.pop();
+	var used;
+	animator.tiles[i]=twin;
+	if(compare_shuffle()>0){
+		used=tile;
+		animator.twins.push(new_tile(tile));
+	}else{
+		used=new_tile(tile);
+		animator.twins.push(tile);
+	}
+	animator.tiles[j]=used;
+	var s=Math.round(Math.random()*(game_options.max_tiles-game_options.min_tiles));
+	if(s>0&&compare_shuffle()>0){
+		s=animator.tiles.length-s;
+		animator.tiles[j]=animator.tiles[s];
+		animator.tiles[s]=used;
+		place_tile(used,s);
+		used=animator.tiles[j];
+	}
+	place_tile(twin,i);
+	place_tile(used,j);
+	setTimeout(request_tile,100);
+}
+
+function remove_tile(img,div){
+	try{
+		div.removeChild(img);;
+		game_options.board_id.removeChild(div);
+	}catch(e){
+		reset_game();
+	};
+}
+
+function animator_ghost(data,v,p){
+	var div=data[0];
+	set_opacity(div,v);
+	if(animator.simple)p=p<1?0.5:2;
+	div.style.width=''+(game_options.tile_width*p)+'px';
+	div.style.height=''+(game_options.tile_height*p)+'px';
+	div.style.left=''+(data[1]-game_options.tile_width*p/2)+'px';
+	div.style.top=''+(data[2]-game_options.tile_height*p/2)+'px';
+}
+
+function animator(){
+	document.title='Find Twin v1.0, by Kly_Men_COmpany!';
+	animator.ready=false;
+	animator.stop=false;
+	animator.simple=false;
+	animator.target=0;
+	animator.tiles=[];
+	animator.cache=[];
+	animator.toshow=[];
+	animator.tohide=[];
+	animator.toshrink=[];
+	animator.toenlarge=[];
+	animator.time=0;
+	animator.points=0;
+	if(animator.interval)return;
+	animator.interval=true;
+	setInterval(function(){
+		if(animator.ready){
+			animator.time++;
+			var tile,v,data,cap,sec;
+			sec=(animator.time/40)|0;
+			cap=''+animator.points+' / '+((sec/60)|0)+':'+('0'+(sec%60)).substr(-2);
+			if(document.title!=cap)document.title=cap;
+		}
+		for(var i=animator.toshow.length;i--;){
+			tile=animator.toshow[i];
+			v=get_opacity(tile);
+			if(v>0.99){
+				v=1;
+				animator.toshow[i]=animator.toshow[animator.toshow.length-1];
+				animator.toshow.pop();
+			}
+			v+=(1-v)/4;
+			set_opacity(tile,v);
+		};
+		for(var i=animator.tohide.length;i--;){
+			tile=animator.tohide[i];
+			v=get_opacity(tile);
+			if(v<0.01){
+				v=0;
+				animator.tohide[i]=animator.tohide[animator.tohide.length-1];
+				animator.tohide.pop();
+			}
+			v+=(0-v)/8;
+			set_opacity(tile,v);
+		};
+		for(var i=animator.toshrink.length;i--;){
+			data=animator.toshrink[i];
+			v=data[3];
+			v+=(0-v)/8;
+			data[3]=v;
+			animator_ghost(data,1,v);
+			if(v<0.04){
+				animator.toshrink[i]=animator.toshrink[animator.toshrink.length-1];
+				animator.toshrink.pop();
+				remove_tile(data[5],data[0]);
+				if(data[4][0]>=0)animator.tiles[data[4][0]]=null;
+				if(data[4][1]>=0)animator.tiles[data[4][1]]=null;
+				place_next();
+			}
+		};
+		for(var i=animator.toenlarge.length;i--;){
+			data=animator.toenlarge[i];
+			v=data[3];
+			v+=(1-v)/8;
+			data[3]=v;
+			animator_ghost(data,1-v,data[4]);
+			data[4]+=v/8;
+			if(v>0.96){
+				animator.toenlarge[i]=animator.toenlarge[animator.toenlarge.length-1];
+				animator.toenlarge.pop();
+				remove_tile(data[5],data[0]);
+			}
+		};
+	},25);
+}
+
+function animator_no(arr,img){
+	for(var i=arr.length;i--;)if(arr[i]==img){
+		arr[i]=arr[arr.length-1];
+		arr.pop();
+		break;
+	}
+}
+
+function animator_show(img){
+	animator_no(animator.tohide,img);
+	for(var i=animator.toshow.length;i--;)if(animator.toshow[i]==img)return;
+	animator.toshow.push(img);
+}
+
+function animator_hide(img){
+	animator_no(animator.toshow,img);
+	for(var i=animator.tohide.length;i--;)if(animator.tohide[i]==img)return;
+	animator.tohide.push(img);
+}
+
+function animator_shrink(img,div,ij){
+	set_opacity(div,1);
+	set_opacity(img,1);
+	class_add(div,'ghost');
+	animator_no(animator.tohide,img);
+	animator_no(animator.toshow,img);
+	animator.toshrink.push([div,parseInt(div.style.left,10)+game_options.tile_width/2,parseInt(div.style.top,10)+game_options.tile_height/2,1,ij,img]);
+}
+
+function animator_enlarge(img,div){
+	set_opacity(div,1);
+	set_opacity(img,1);
+	class_add(div,'ghost');
+	class_add(div,'overlay');
+	animator_no(animator.tohide,img);
+	animator_no(animator.toshow,img);
+	animator.toenlarge.push([div,parseInt(div.style.left,10)+game_options.tile_width/2,parseInt(div.style.top,10)+game_options.tile_height/2,0,1,img]);
+}
+
+function animator_remove(tile){
+	var img=tile[0],div=tile[1];
+	tile_events(img);
+	animator_no(animator.toshow,img);
+	animator_no(animator.tohide,img);
+}
+
+function request_tile(){
+	if(request_tile.active||!animator.ready)return;
+	if(animator.cache.length>animator.target)return;
+	request_tile.active=true;
+	new_tile(animator.waifu,function(tile){
+		request_tile.active=false;
+		if(!animator.ready)return remove_tile(tile[0],tile[1]);
+		place_tile(tile,-1);
+		animator.cache.push(tile);
+		if(animator.cache.length<animator.target)setTimeout(request_tile,50);
+		place_next();
+	});
+}
+
+function animator_done(a,b){
+	animator.points++;
+	animator.seltile=null;
+	animator.curtile=null;
+	var i=-1,j=-1;
+	for(var n=animator.tiles.length;n--;)if(animator.tiles[n]){
+		if(animator.tiles[n][0]==a[0])i=n;
+		if(animator.tiles[n][0]==b[0])j=n;
+	};
+	animator_remove(a);
+	animator_remove(b);
+	animator_shrink(a[0],a[1],[i,j]);
+	animator_enlarge(b[0],b[1]);
+}
+
+function animator_cheat(c){
+	if(c){
+		class_add(game_options.board_id,'cheat');
+	}else{
+		class_del(game_options.board_id,'cheat');
+	}
+}
+
+function start_game(){
+	if(animator.stop)return;
+	var a,q,t;
+	a=animator.tiles;
+	animator.tiles=[];
+	a.forEach(function(tile){
+		set_opacity(tile[0],0);
+		class_del(tile[1],'current');
+		place_tile(tile,-1);
+	});
+	q=(a.length/4)|0;
+	if(!q)return false;
+	var m=game_options.max_tiles-game_options.Mins;
+	if(q<=m)q=m+1;
+	a.sort(compare_shuffle);
+	for(var i=0;i<q;i++){
+		t=a.pop();
+		animator.tiles.push(t);
+		animator.tiles.push(new_tile(t));
+	}
+	animator.twins=[];
+	while(animator.tiles.length<game_options.max_tiles){
+		t=a.pop();
+		if(compare_shuffle()>0){
+			animator.tiles.push(t);
+			animator.twins.push(new_tile(t));
+		}else{
+			animator.twins.push(t);
+			animator.tiles.push(new_tile(t));
+		}
+	}
+	animator.cache=a;
+	animator.target=a.length;
+	animator.tiles.sort(compare_shuffle);
+	place_all();
+	animator.ready=true;
+	animator_cheat(animator.cheat);
+	return true;
+}
+
+function create_tiles(waifu){
+	if(animator.stop)return;
+	if(!animator.waifu)animator.waifu=waifu;
+	if(animator.tiles.length<game_options.max_tiles||animator.tiles.length<14)return new_tile(animator.waifu,function(tile){
+		if(animator.stop)return;
+		set_opacity(tile[0],1);
+		class_add(tile[1],'current');
+		animator.tiles.push(tile);
+		place_tile(tile,animator.tiles.length-1);
+		setTimeout(create_tiles,100);
+	});
+	setTimeout(function(){
+		if(animator.stop)return;
+		animator.tiles.forEach(function(tile){
+			animator_hide(tile[0]);
+		});
+		setTimeout(start_game,1100);
+	},200);
+}
+
+function reset_game(start){
+	if(animator.stop)return;
+	if(!start&&page_init.game_menu.style.display=='block')return;
+	page_init.game_menu.style.display='none';
+	page_init.game_board.style.display='block';
+	animator.ready=false;
+	animator.stop=true;
+	for(var i=animator.tiles.length;i--;)if(animator.tiles[i]){
+		set_opacity(animator.tiles[i][1],1);
+		animator_hide(animator.tiles[i][1]);
+	}
+	if(start){
+		game_options.board_id.innerHTML='';
+		animator_cheat(false);
+		board_resize(page_init.board_size);
+		animator();
+		animator.simple=!page_init.c_animate;
+		animator.cheat=!page_init.c_fade;
+		page_init.waifu.start(page_init.prov_name);
+		create_tiles(page_init.waifu);
+	}else{
+		setTimeout(function(){
+			game_options.board_id.innerHTML='';
+			animator_cheat(false);
+			page_init.game_menu.style.display='block';
+			page_init.game_board.style.display='none';
+			page_init.in_menu=true;
+			animator.stop=false;
+		},1500);
+	}
+}
+
+function page_text(first){
+	page_init.board_lt.disabled=page_init.board_size<4;
+	page_init.board_gt.disabled=page_init.board_size>9;
+	if(first){
+		page_init.c_fade_id.checked=page_init.c_fade;
+		page_init.c_animate_id.checked=page_init.c_animate;
+	}
+	page_init.board_size_id.textContent=''+page_init.board_size+'×'+page_init.board_size;
+	page_init.waifu_name.textContent=page_init.prov_name;
+	page_init.waifu_size.textContent=page_init.prov_size;
+}
+
+function page_waifu(inc){
+	var i=page_init.providers.indexOf(page_init.prov_name)+inc;
+	if(i<=0){
+		page_init.waifu_lt.disabled=true;
+		i=0;
+	}else page_init.waifu_lt.disabled=false;
+	if(i>=page_init.providers.length-1){
+		page_init.waifu_gt.disabled=true;
+		i=page_init.providers.length-1;
+	}else page_init.waifu_gt.disabled=false;
+	page_init.prov_name=page_init.providers[i];
+	page_init.prov_size=page_init.waifu.start(page_init.prov_name);
+	page_init.b_play.disabled=!page_init.prov_size;
+}
+
+function page_init(){
+	page_init.waifu=waifu_provider();
+	page_init.providers=page_init.waifu.start();
+	page_init.prov_name='Default';
+	page_init.in_menu=true;
+	page_init.game_menu=document.getElementById('game_menu');
+	page_init.game_board=document.getElementById('game_board');
+	page_init.board_size=6;
+	page_init.board_lt=document.getElementById('board_lt');
+	page_init.board_gt=document.getElementById('board_gt');
+	page_init.board_size_id=document.getElementById('board_size');
+	page_init.c_fade=true;
+	page_init.c_animate=true;
+	page_init.c_fade_id=document.getElementById('c_fade');
+	page_init.c_animate_id=document.getElementById('c_animate');
+	page_init.b_play=document.getElementById('b_play');
+	page_init.waifu_name=document.getElementById('waifu_name');
+	page_init.waifu_size=document.getElementById('waifu_size');
+	page_init.waifu_lt=document.getElementById('waifu_lt');
+	page_init.waifu_gt=document.getElementById('waifu_gt');
+	page_init.board_lt.addEventListener('click',function(e){
+		if(page_init.board_size>board_resize(-2))page_init.board_size--;
+		page_text();
+	});
+	page_init.board_gt.addEventListener('click',function(e){
+		if(page_init.board_size<board_resize(-1))page_init.board_size++;
+		page_text();
+	});
+	page_init.c_fade_id.addEventListener('click',function(e){
+		page_init.c_fade=page_init.c_fade_id.checked;
+		page_text();
+	});
+	page_init.c_animate_id.addEventListener('click',function(e){
+		page_init.c_animate=page_init.c_animate_id.checked;
+		page_text();
+	});
+	page_init.b_play.addEventListener('click',function(e){
+		page_init.in_menu=false;
+		reset_game(true);
+	});
+	page_init.waifu_lt.addEventListener('click',function(e){
+		page_waifu(-1);
+		page_text();
+	});
+	page_init.waifu_gt.addEventListener('click',function(e){
+		page_waifu(1);
+		page_text();
+	});
+	page_waifu(0);
+	page_text(true);
+	document.getElementById('no_script').style.display='none';
+	page_init.game_menu.style.display='block';
+}
+
+function body_onload(){
+	try{
+		page_init();
+		var pd=function(e){
+			e.preventDefault();
+			return false;
+		};
+		var pd_ctrl=function(e){
+			if(e.ctrlKey||e.shiftKey||e.metaKey||e.keyCode==27){
+				if(e.keyCode==27)reset_game();
+				e.preventDefault();
+				return false;
+			}
+			return true;
+		};
+		window.addEventListener('selectstart',pd);
+		window.addEventListener('contextmenu',pd);
+		window.addEventListener('keydown',pd_ctrl);
+		window.addEventListener('wheel',pd_ctrl);
+		window.addEventListener('mousewheel',pd_ctrl);
+		window.addEventListener('DOMMouseScroll',pd_ctrl);
+		window.onresize=function(e){
+			if(!animator.stop){
+				board_resize();
+				place_all();
+			}
+			return true;
+		};
+		document.body.style.zoom=1.0;
+		var scale='scale(1)';
+		document.body.style.webkitTransform=scale;
+		document.body.style.msTransform=scale;
+		document.body.style.transform=scale;
+		window.addEventListener('popstate',function(e){
+			if(page_init.in_menu)return true;
+			reset_game();
+			try{history.pushState({},'','#game');}catch(e){;};
+			e.preventDefault();
+		});
+		try{history.pushState({},'','#game');}catch(e){;};
+		animator();
+		board_resize();
+		document.getElementById('fatal_error').style.display='none';
+	}catch(e){
+		document.getElementById('game_board').style.display='none';
+		document.getElementById('game_menu').style.display='none';
+		document.getElementById('fatal_error').textContent='Fatal error: '+e.message+'\n\n'+e.stack;
+		throw e;
+	}
+}
+</script>
+<style>
+*{
+	box-sizing:border-box;
+	-webkit-box-sizing:border-box;
+	-moz-box-sizing:border-box;
+}
+html,head,body,div,img{
+	margin:0;
+	padding:0;
+	overflow:hidden;
+}
+body,html{
+	background-color:#777;
+	-webkit-touch-callout: none;
+	-webkit-user-select: none;
+	-khtml-user-select: none;
+	-moz-user-select: none;
+	-ms-user-select: none;
+	user-select: none;
+	-moz-transform:scale(1);
+	-webkit-transform:scale(1);
+	-o-transform:scale(1);
+	-ms-transform:scale(1);
+	transform:scale(1);
+	width:100%;
+	height:100%;
+	zoom:1.0;
+}
+#game_board{
+	position:relative;
+	margin:auto;
+	display:none;
+}
+.game_tile_border{
+	position:absolute;
+	border:1px solid black;
+	display:inline-block;
+}
+.game_tile{
+	position:absolute;
+	top:0;
+	left:0;
+}
+.cheat .game_tile{
+	opacity:1 !important;
+}
+.ghost .game_tile{
+	width:100% !important;
+	height:100% !important;
+}
+.mirror{
+	-moz-transform: scaleX(-1);
+	-o-transform: scaleX(-1);
+	-webkit-transform: scaleX(-1);
+	transform: scaleX(-1);
+}
+.current{
+	border:1px solid white;
+	z-index:10;
+}
+.ghost{
+	pointer-events:none;
+	z-index:100;
+	border:0 !important;
+}
+.overlay{
+	z-index:100;
+}
+table,tr,tr{
+	width:100%;
+	height:100%;
+	border:0;
+	text-align:center;
+	margin:auto;
+}
+button,input{
+	margin:auto;
+	text-align:center;
+	vertical-align:middle;
+}
+#game_menu{
+	display:none;
+	height:100%;
+}
+.game_menu *{
+	font-family:Arial Unicode MS,Arial;
+	font-size:calc(12px + 5vmin);
+	white-space:nowrap;
+	line-height:1;
+}
+.game_menu{
+	text-align:center;
+}
+input[type="checkbox"]{
+	display:none;
+}
+input[type="checkbox"]+label:before{
+	content:"☐";
+	font-family:Arial Unicode MS,MS Mincho;
+}
+input:checked+label:before{
+	content:"☑";
+	font-family:Arial Unicode MS,MS Mincho;
+}
+input:checked+label{
+	text-decoration:underline;
+}
+label:hover{
+	color:white;
+}
+.row>div{
+	display:inline-block;
+	vertical-align:middle;
+}
+.row{
+	margin:auto;
+	text-align:center;
+	padding: 2vh 2vw;
+}
+button{
+	background-color:silver;
+	margin:1vmin;
+	border:0.5vmin solid black;
+	font-weight:bold;
+	padding:0.5vh 2vw;
+}
+button:hover{
+	border-color:white;
+}
+button:active{
+	color:white;
+}
+button[disabled]{
+	color:#999 !important;
+	border-color:#999 !important;
+}
+.row label{
+	padding:1vh 2vw;
+	margin:1vh 0;
+	display:inline-block;
+}
+.col {
+	display:inline-block;
+}
+.layer{
+	position:relative;
+	visibility:hidden;
+	padding:1.5vh 0;
+}
+.layer>table{
+	position:absolute;
+	left:0;
+	top:0;
+	visibility:visible;
+	font-weight:normal;
+	font-style:italic;
+}
+#waifu_name,#waifu_size{
+	font-size:80%;
+}
+table,td,th,tr{
+	border:0;
+	margin:0;
+	padding:0;
+	width:100%;
+	height:100%;
+}
+#no_script{
+	margin:16px;
+	font:bold 16pt Arial;
+}
+*{
+	cursor:default;
+}
+</style>
+</head><body onload="body_onload();" onselect="document.selection.empty();return false" oncopy="document.selection.empty();return false;" ondragstart="return false;" ondrop="return false;" oncontextmenu="return false;">
+
+<div id="game_board"></div>
+
+<div id="game_menu"><table><tr><td valign="middle" halign="center"><div class="game_menu">
+
+<div class="col">
+	<div class="row">
+		<div><button id="board_lt">&lt;</button></div>
+		<div class="layer"><div>WWWW</div><table>
+				<tr><td><span id="board_size">??×??</span></td></tr>
+		</table></div>
+		<div><button id="board_gt">&gt;</button></div>
+	</div>
+	<div class="row">
+		<div><input type="checkbox" id="c_fade" /><label for="c_fade">Fade</label></div>
+		<div><input type="checkbox" id="c_animate" /><label for="c_animate">Animate</label></div>
+	</div>
+</div>
+
+<div class="col">
+	<div class="row">
+		<div><button id="waifu_lt">&lt;</button></div>
+		<div class="layer"><div>WWWWW<br>WWWWW</div><table>
+				<tr><td><span id="waifu_name">????????</span></td></tr>
+				<tr><td><span id="waifu_size">(???)</span></td></tr>
+		</table></div>
+		<div><button id="waifu_gt">&gt;</button></div>
+	</div>
+	<div class="row">
+		<div><button id="b_play">PLAY</button></div>
+	</div>
+</div>
+
+</div></td></tr></table></div>
+
+<div id="no_script">This game requires Javascript and modern browser!</div>
+<pre id="fatal_error"><noscript>Fatal error: javascript is actually disabled...</noscript></pre>
+
+</body></html>
